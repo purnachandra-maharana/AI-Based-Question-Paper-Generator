@@ -1,0 +1,1683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuestGen — AI Question Paper Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;900&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ════════════════════════════════════════════
+   DESIGN TOKENS
+════════════════════════════════════════════ */
+:root {
+  --navy:        #0d1b2e;
+  --navy-mid:    #162440;
+  --navy-light:  #1e3050;
+  --navy-border: #263a55;
+  --gold:        #c9a84c;
+  --gold-light:  #e2c278;
+  --gold-dim:    rgba(201,168,76,0.15);
+  --gold-border: rgba(201,168,76,0.3);
+  --white:       #ffffff;
+  --off-white:   #f7f5f0;
+  --paper:       #fdfcf9;
+  --muted:       #8fa3bc;
+  --muted2:      #5c7a99;
+  --danger:      #e05555;
+  --success:     #3da87a;
+
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   16px;
+
+  --shadow-sm:  0 1px 4px rgba(0,0,0,0.25);
+  --shadow-md:  0 4px 20px rgba(0,0,0,0.35);
+  --shadow-lg:  0 12px 40px rgba(0,0,0,0.4);
+
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body:    'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono:    'IBM Plex Mono', 'Courier New', monospace;
+}
+
+/* ── RESET ── */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body {
+  font-family: var(--font-body);
+  background: var(--navy);
+  color: var(--white);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ══════════════════════════════════════════
+   TOP NAVIGATION BAR
+══════════════════════════════════════════ */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: 62px;
+  background: var(--navy);
+  border-bottom: 1px solid var(--navy-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  backdrop-filter: blur(12px);
+}
+
+.topbar::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  opacity: 0.5;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-icon {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, var(--gold), #a87d2a);
+  border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+  box-shadow: 0 2px 12px rgba(201,168,76,0.4);
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-name {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--white);
+  line-height: 1;
+}
+
+.brand-tagline {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  font-weight: 300;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--gold);
+  opacity: 0.8;
+  margin-top: 3px;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-badge {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border: 1px solid var(--navy-border);
+  border-radius: 100px;
+  color: var(--muted);
+  background: var(--navy-mid);
+}
+
+.nav-badge.active {
+  border-color: var(--gold-border);
+  color: var(--gold-light);
+  background: var(--gold-dim);
+}
+
+.step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.step-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--navy-border);
+  transition: background 0.3s;
+}
+.step-dot.done { background: var(--gold); }
+.step-dot.active { background: var(--gold-light); box-shadow: 0 0 6px var(--gold); }
+
+/* ══════════════════════════════════════════
+   LAYOUT
+══════════════════════════════════════════ */
+.app {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  min-height: calc(100vh - 62px);
+}
+
+/* ══════════════════════════════════════════
+   LEFT PANEL — CONFIGURATION
+══════════════════════════════════════════ */
+.panel {
+  background: var(--navy-mid);
+  border-right: 1px solid var(--navy-border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.panel-header {
+  padding: 24px 28px 0;
+  position: sticky;
+  top: 0;
+  background: var(--navy-mid);
+  z-index: 10;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--navy-border);
+}
+
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--white);
+  margin-bottom: 2px;
+}
+
+.panel-sub {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.panel-body {
+  padding: 0 28px 32px;
+  flex: 1;
+}
+
+/* Section groups */
+.config-section {
+  padding: 20px 0 0;
+  border-bottom: 1px solid var(--navy-border);
+  margin-bottom: 0;
+  padding-bottom: 20px;
+}
+.config-section:last-of-type { border-bottom: none; }
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.section-title-text {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 500;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.section-title-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--navy-border), transparent);
+}
+
+/* Form fields */
+.field { margin-bottom: 12px; }
+.field:last-child { margin-bottom: 0; }
+
+.field-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.label-text {
+  font-size: 0.69rem;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.label-hint {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  color: var(--muted2);
+}
+
+.field input[type=text],
+.field input[type=number],
+.field select,
+.field textarea {
+  width: 100%;
+  background: var(--navy);
+  border: 1px solid var(--navy-border);
+  border-radius: var(--radius-sm);
+  color: var(--white);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  padding: 9px 12px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  -webkit-appearance: none;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: var(--gold);
+  background: var(--navy-light);
+  box-shadow: 0 0 0 3px rgba(201,168,76,0.12);
+}
+
+.field input::placeholder,
+.field textarea::placeholder { color: var(--muted2); font-style: italic; }
+.field select option { background: var(--navy-mid); color: var(--white); }
+.field textarea { resize: vertical; min-height: 60px; line-height: 1.5; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+/* Tag input */
+.tag-field {
+  background: var(--navy);
+  border: 1px solid var(--navy-border);
+  border-radius: var(--radius-sm);
+  padding: 7px;
+  min-height: 46px;
+  display: flex; flex-wrap: wrap; gap: 5px;
+  cursor: text;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.tag-field:focus-within {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(201,168,76,0.12);
+}
+.tag-pill {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--gold-dim);
+  border: 1px solid var(--gold-border);
+  color: var(--gold-light);
+  border-radius: 4px;
+  padding: 3px 9px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 400;
+  animation: pillIn 0.2s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes pillIn { from{transform:scale(0.75);opacity:0} to{transform:scale(1);opacity:1} }
+.pill-x {
+  cursor: pointer; opacity: 0.5; line-height: 1; font-size: 0.85rem;
+  transition: opacity 0.15s;
+}
+.pill-x:hover { opacity: 1; }
+.tag-bare-input {
+  border: none; outline: none; background: transparent;
+  color: var(--white); font-family: var(--font-body); font-size: 0.8rem;
+  min-width: 90px; flex: 1; padding: 2px 4px;
+}
+.tag-bare-input::placeholder { color: var(--muted2); font-style: italic; }
+
+/* Bloom sliders */
+.bloom-stack { display: flex; flex-direction: column; gap: 8px; }
+
+.bloom-item {
+  background: var(--navy);
+  border: 1px solid var(--navy-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 96px 1fr 36px;
+  align-items: center;
+  gap: 10px;
+  transition: border-color 0.2s;
+}
+.bloom-item:hover { border-color: var(--navy-light); }
+
+.bloom-name {
+  font-size: 0.71rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.bloom-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  background: var(--navy-border);
+  border-radius: 100px;
+  padding: 0; cursor: pointer;
+  border: none; box-shadow: none; outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  background: var(--gold);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(201,168,76,0.5);
+  transition: transform 0.15s;
+}
+input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+.bloom-count {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--white);
+  text-align: center;
+  background: var(--navy-mid);
+  border-radius: 4px;
+  padding: 3px 0;
+  border: 1px solid var(--navy-border);
+}
+
+/* Part structure cards */
+.parts-grid { display: flex; flex-direction: column; gap: 8px; }
+
+.part-card {
+  background: var(--navy);
+  border: 1px solid var(--navy-border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.part-num {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--gold);
+  min-width: 18px;
+}
+
+.part-info { flex: 1; }
+
+.part-name {
+  font-size: 0.77rem;
+  font-weight: 600;
+  color: var(--white);
+  margin-bottom: 2px;
+}
+
+.part-desc {
+  font-size: 0.65rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.part-marks-badge {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--gold);
+  border: 1px solid var(--gold-border);
+  background: var(--gold-dim);
+  padding: 4px 10px;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+
+/* Previous papers */
+.prev-stack { display: flex; flex-direction: column; gap: 7px; }
+
+.prev-card {
+  background: var(--navy);
+  border: 1px solid var(--navy-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  user-select: none;
+}
+.prev-card:hover { border-color: var(--muted2); }
+.prev-card input[type=checkbox] {
+  accent-color: var(--gold);
+  width: 14px; height: 14px;
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 0; border: none; background: none;
+}
+.prev-label { font-size: 0.76rem; font-weight: 500; color: var(--white); }
+.prev-meta {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* Generate button */
+.gen-wrap { padding: 20px 28px; border-top: 1px solid var(--navy-border); background: var(--navy-mid); position: sticky; bottom: 0; }
+
+.gen-btn {
+  width: 100%;
+  background: linear-gradient(135deg, var(--gold) 0%, #a87d2a 100%);
+  color: var(--navy);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 14px 20px;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(201,168,76,0.35);
+  position: relative;
+  overflow: hidden;
+}
+
+.gen-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.gen-btn:hover::before { opacity: 1; }
+.gen-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(201,168,76,0.45); }
+.gen-btn:active { transform: translateY(0); }
+.gen-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.gen-btn-icon { font-size: 0.95rem; }
+
+/* ══════════════════════════════════════════
+   RIGHT PANEL — OUTPUT
+══════════════════════════════════════════ */
+.workspace {
+  background: #0a1422;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+/* Empty state */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 60px;
+  text-align: center;
+  animation: fadeIn 0.5s ease;
+}
+
+.empty-graphic {
+  width: 80px; height: 80px;
+  border: 1px solid var(--navy-border);
+  border-radius: var(--radius-lg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2rem;
+  background: var(--navy-mid);
+  box-shadow: 0 0 40px rgba(201,168,76,0.05);
+}
+
+.empty-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--muted2);
+}
+
+.empty-body {
+  font-size: 0.8rem;
+  color: var(--muted2);
+  max-width: 320px;
+  line-height: 1.7;
+  opacity: 0.75;
+}
+
+.empty-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  max-width: 280px;
+  width: 100%;
+}
+
+.empty-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.step-num {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--navy-border);
+  background: var(--navy-mid);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--gold);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Loading */
+.loading-state {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  animation: fadeIn 0.3s ease;
+}
+.loading-state.active { display: flex; }
+.empty-state.hidden { display: none; }
+
+.loader-ring {
+  width: 52px; height: 52px;
+  border: 2px solid var(--navy-border);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loading-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.loading-dots {
+  display: flex; gap: 6px;
+}
+.loading-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+  opacity: 0.3;
+  animation: dotPulse 1.2s ease-in-out infinite;
+}
+.loading-dot:nth-child(2) { animation-delay: 0.2s; }
+.loading-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dotPulse { 0%,80%,100%{opacity:0.3;transform:scale(0.8)} 40%{opacity:1;transform:scale(1)} }
+
+/* Output wrapper */
+.output-area {
+  display: none;
+  flex-direction: column;
+  min-height: 100%;
+}
+.output-area.active {
+  display: flex;
+  animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1);
+}
+@keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+@keyframes fadeIn  { from{opacity:0} to{opacity:1} }
+
+/* Output toolbar */
+.output-toolbar {
+  background: var(--navy-mid);
+  border-bottom: 1px solid var(--navy-border);
+  padding: 16px 32px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.output-heading {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--white);
+  line-height: 1.2;
+  margin-bottom: 8px;
+}
+
+.meta-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.meta-tag {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 100px;
+  background: var(--navy);
+  color: var(--muted);
+  border: 1px solid var(--navy-border);
+}
+
+.action-row {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  align-items: flex-start;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid var(--navy-border);
+  background: var(--navy);
+  color: var(--muted);
+}
+.action-btn:hover { border-color: var(--muted2); color: var(--white); }
+
+.action-btn.export {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--navy);
+  font-weight: 600;
+  box-shadow: 0 2px 10px rgba(201,168,76,0.3);
+}
+.action-btn.export:hover { background: var(--gold-light); border-color: var(--gold-light); box-shadow: 0 4px 16px rgba(201,168,76,0.45); }
+
+/* Content body */
+.output-body {
+  flex: 1;
+  padding: 28px 32px;
+}
+
+/* Analytics strip */
+.analytics-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: var(--navy-mid);
+  border: 1px solid var(--navy-border);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--gold), transparent);
+  opacity: 0.6;
+}
+
+.stat-val {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--gold-light);
+  line-height: 1;
+  margin-bottom: 5px;
+}
+
+.stat-label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Distribution */
+.dist-card {
+  background: var(--navy-mid);
+  border: 1px solid var(--navy-border);
+  border-radius: var(--radius-md);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+}
+
+.dist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.dist-title {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.dist-total {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+
+.dist-grid { display: flex; flex-direction: column; gap: 10px; }
+
+.dist-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 52px;
+  align-items: center;
+  gap: 12px;
+}
+
+.dist-name { font-size: 0.74rem; font-weight: 500; }
+
+.dist-track {
+  background: var(--navy);
+  border-radius: 100px;
+  height: 6px;
+  overflow: hidden;
+  border: 1px solid var(--navy-border);
+}
+
+.dist-fill {
+  height: 100%;
+  border-radius: 100px;
+  transition: width 1s cubic-bezier(0.16,1,0.3,1);
+  width: 0%;
+}
+
+.dist-pct {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--muted);
+  text-align: right;
+}
+
+/* ════════════════════════════════════════════
+   QUESTION PAPER — EXACT FORMAT REPLICA
+════════════════════════════════════════════ */
+.paper-wrap {
+  background: #fff;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  color: #111;
+  font-family: 'IBM Plex Sans', Arial, sans-serif;
+}
+
+/* Registration row */
+.qp-reg-row {
+  display: flex;
+  border-bottom: 2.5px solid #111;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.qp-reg-left {
+  flex: 1;
+  padding: 9px 16px;
+  border-right: 1.5px solid #111;
+  display: flex;
+  align-items: center;
+}
+.qp-reg-boxes { display: flex; }
+.qp-reg-box {
+  width: 30px;
+  border-right: 1px solid #111;
+  display: flex; align-items: center; justify-content: center;
+  padding: 9px 0;
+  font-size: 0.6rem;
+  color: #ccc;
+}
+.qp-reg-box:last-child { border-right: none; }
+
+/* Paper header */
+.qp-head {
+  border-bottom: 2.5px solid #111;
+  padding: 16px 20px 14px;
+}
+.qp-head-top {
+  font-size: 0.74rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.qp-center-block { text-align: center; margin-bottom: 10px; }
+.qp-exam-line { font-size: 0.82rem; font-weight: 700; margin-bottom: 4px; }
+.qp-subject-name {
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 3px;
+}
+.qp-branch-line { font-size: 0.75rem; font-weight: 700; margin-bottom: 10px; }
+.qp-info-bar {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid #bbb;
+  padding-top: 9px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+.qp-instruction {
+  margin-top: 9px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1.5;
+}
+
+/* Part heading */
+.qp-part-head {
+  background: #f0f0f0;
+  border-top: 1px solid #aaa;
+  border-bottom: 1px solid #aaa;
+  padding: 7px 16px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Question table */
+.qp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.qp-table th {
+  background: #e8e8e8;
+  border: 1px solid #999;
+  padding: 7px 10px;
+  font-weight: 700;
+  font-size: 0.69rem;
+  text-align: center;
+  vertical-align: middle;
+}
+.qp-table td {
+  border: 1px solid #ccc;
+  padding: 9px 11px;
+  vertical-align: top;
+  line-height: 1.55;
+}
+.qp-table tr:hover td { background: #fafafa; transition: background 0.1s; }
+
+.tc-qno { width: 46px; text-align: center; font-weight: 700; vertical-align: middle; }
+.tc-sub { width: 30px; text-align: center; }
+.tc-co  { width: 38px; text-align: center; }
+.tc-lvl { width: 42px; text-align: center; }
+.tc-m   { width: 46px; text-align: center; font-weight: 700; }
+
+/* Paper footer */
+.qp-paper-footer {
+  border-top: 1px solid #ccc;
+  padding: 10px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8f8f8;
+  font-size: 0.68rem;
+  color: #888;
+  font-style: italic;
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--navy-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted2); }
+
+/* ── NO SPINNERS ── */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+/* ── PRINT ── */
+@media print {
+  body { background: #fff !important; color: #000 !important; }
+  .app { display: block !important; }
+  .panel, .topbar, .output-toolbar, .analytics-row, .dist-card, .qp-paper-footer { display: none !important; }
+  .workspace, .output-body { padding: 0 !important; background: #fff !important; }
+  .output-area { display: flex !important; }
+  .paper-wrap { box-shadow: none !important; border-radius: 0 !important; }
+  @page { margin: 12mm 14mm; size: A4; }
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; }
+  .panel { border-right: none; border-bottom: 1px solid var(--navy-border); }
+  .analytics-row { grid-template-columns: 1fr 1fr; }
+  .topbar { padding: 0 20px; }
+  .output-body { padding: 20px; }
+  .output-toolbar { padding: 14px 20px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════ TOP BAR ═══════ -->
+<nav class="topbar">
+  <div class="brand">
+    <div class="brand-icon">📋</div>
+    <div class="brand-text">
+      <span class="brand-name">QuestGen</span>
+      <span class="brand-tagline">AI Question Paper Generator</span>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="step-indicator" id="stepDots">
+      <div class="step-dot active"></div>
+      <div class="step-dot"></div>
+      <div class="step-dot"></div>
+    </div>
+    <div class="nav-badge active" id="navStatus">Configure</div>
+  </div>
+</nav>
+
+<!-- ═══════ APP SHELL ═══════ -->
+<div class="app">
+
+  <!-- ═══ LEFT PANEL ═══ -->
+  <aside class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Paper Configuration</div>
+      <div class="panel-sub">Fill all fields and hit Generate</div>
+    </div>
+
+    <div class="panel-body">
+
+      <!-- INSTITUTION -->
+      <div class="config-section">
+        <div class="section-title">
+          <span class="section-title-text">Institution</span>
+          <div class="section-title-line"></div>
+        </div>
+        <div class="field">
+          <div class="field-label"><span class="label-text">University / Institution</span></div>
+          <input type="text" id="university" value="XYZ University of Technology">
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <div class="field-label"><span class="label-text">Branch</span></div>
+            <input type="text" id="branch" value="MCA">
+          </div>
+          <div class="field">
+            <div class="field-label"><span class="label-text">Course Code</span></div>
+            <input type="text" id="code" value="22MC102">
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-label"><span class="label-text">Subject Name</span></div>
+          <input type="text" id="subject" value="Computer Organization and Architecture">
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <div class="field-label"><span class="label-text">Semester</span></div>
+            <select id="semester">
+              <option value="1st" selected>1st Semester</option>
+              <option value="2nd">2nd Semester</option>
+              <option value="3rd">3rd Semester</option>
+              <option value="4th">4th Semester</option>
+              <option value="5th">5th Semester</option>
+              <option value="6th">6th Semester</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-label"><span class="label-text">Academic Year</span></div>
+            <input type="text" id="acyear" value="2024-25">
+          </div>
+        </div>
+        <div class="grid-3">
+          <div class="field">
+            <div class="field-label"><span class="label-text">Exam Type</span></div>
+            <select id="examType">
+              <option>Regular Examination</option>
+              <option>Back Examination</option>
+              <option>Model Examination</option>
+              <option>Mid Semester</option>
+              <option>Internal Assessment</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-label"><span class="label-text">Duration</span><span class="label-hint">hours</span></div>
+            <input type="number" id="duration" value="3" min="1" max="6">
+          </div>
+          <div class="field">
+            <div class="field-label"><span class="label-text">Q Code</span></div>
+            <input type="text" id="qcode" value="L159">
+          </div>
+        </div>
+      </div>
+
+      <!-- TOPICS -->
+      <div class="config-section">
+        <div class="section-title">
+          <span class="section-title-text">Topics / Units</span>
+          <div class="section-title-line"></div>
+        </div>
+        <div class="field">
+          <div class="field-label">
+            <span class="label-text">Add Topics</span>
+            <span class="label-hint">Press Enter or comma</span>
+          </div>
+          <div class="tag-field" id="tagField">
+            <input class="tag-bare-input" id="tagInput" type="text" placeholder="e.g. Memory Hierarchy…">
+          </div>
+        </div>
+      </div>
+
+      <!-- BLOOM'S -->
+      <div class="config-section">
+        <div class="section-title">
+          <span class="section-title-text">Bloom's Taxonomy</span>
+          <div class="section-title-line"></div>
+        </div>
+        <div class="bloom-stack">
+          <div class="bloom-item">
+            <span class="bloom-name"><span class="bloom-dot" style="background:#3da87a"></span>Remember</span>
+            <input type="range" id="b1" min="0" max="14" value="4" oninput="sb(1)">
+            <div class="bloom-count" id="b1v">4</div>
+          </div>
+          <div class="bloom-item">
+            <span class="bloom-name"><span class="bloom-dot" style="background:#52c4a0"></span>Understand</span>
+            <input type="range" id="b2" min="0" max="14" value="5" oninput="sb(2)">
+            <div class="bloom-count" id="b2v">5</div>
+          </div>
+          <div class="bloom-item">
+            <span class="bloom-name"><span class="bloom-dot" style="background:#f0b429"></span>Apply</span>
+            <input type="range" id="b3" min="0" max="14" value="4" oninput="sb(3)">
+            <div class="bloom-count" id="b3v">4</div>
+          </div>
+          <div class="bloom-item">
+            <span class="bloom-name"><span class="bloom-dot" style="background:#e07b28"></span>Analyze</span>
+            <input type="range" id="b4" min="0" max="14" value="3" oninput="sb(4)">
+            <div class="bloom-count" id="b4v">3</div>
+          </div>
+          <div class="bloom-item">
+            <span class="bloom-name"><span class="bloom-dot" style="background:#e05555"></span>Evaluate</span>
+            <input type="range" id="b5" min="0" max="14" value="2" oninput="sb(5)">
+            <div class="bloom-count" id="b5v">2</div>
+          </div>
+          <div class="bloom-item">
+            <span class="bloom-name"><span class="bloom-dot" style="background:#9b59b6"></span>Create</span>
+            <input type="range" id="b6" min="0" max="14" value="2" oninput="sb(6)">
+            <div class="bloom-count" id="b6v">2</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STRUCTURE -->
+      <div class="config-section">
+        <div class="section-title">
+          <span class="section-title-text">Paper Structure</span>
+          <div class="section-title-line"></div>
+        </div>
+        <div class="parts-grid">
+          <div class="part-card">
+            <div class="part-num">I</div>
+            <div class="part-info">
+              <div class="part-name">Short Answer — Answer All 10</div>
+              <div class="part-desc">2 marks × 10 questions</div>
+            </div>
+            <div class="part-marks-badge">20 Marks</div>
+          </div>
+          <div class="part-card">
+            <div class="part-num">II</div>
+            <div class="part-info">
+              <div class="part-name">Focused Short — Any 8 of 12</div>
+              <div class="part-desc">6 marks × 8 questions</div>
+            </div>
+            <div class="part-marks-badge">48 Marks</div>
+          </div>
+          <div class="part-card">
+            <div class="part-num">III</div>
+            <div class="part-info">
+              <div class="part-name">Long Answer — Any 2 of 4</div>
+              <div class="part-desc">16 marks × 2 questions (a+b)</div>
+            </div>
+            <div class="part-marks-badge">32 Marks</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PREVIOUS PAPERS -->
+      <div class="config-section">
+        <div class="section-title">
+          <span class="section-title-text">Avoid Repetition</span>
+          <div class="section-title-line"></div>
+        </div>
+        <div class="prev-stack">
+          <label class="prev-card">
+            <input type="checkbox" value="nov24">
+            <div>
+              <div class="prev-label">Nov 2024 — Regular Examination</div>
+              <div class="prev-meta">22MC102 · Q Code L141 · 30 questions</div>
+            </div>
+          </label>
+          <label class="prev-card">
+            <input type="checkbox" value="apr24">
+            <div>
+              <div class="prev-label">Apr 2024 — Regular Examination</div>
+              <div class="prev-meta">22MC102 · Q Code L120 · 28 questions</div>
+            </div>
+          </label>
+          <label class="prev-card">
+            <input type="checkbox" value="nov22" checked>
+            <div>
+              <div class="prev-label">Nov 2022 — Regular Examination ✓</div>
+              <div class="prev-meta">22MC102 · Q Code L158 (uploaded paper)</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- FACULTY NOTES -->
+      <div class="config-section">
+        <div class="section-title">
+          <span class="section-title-text">Faculty Notes</span>
+          <div class="section-title-line"></div>
+        </div>
+        <div class="field">
+          <textarea id="notes" placeholder="Optional — special instructions, topic emphasis, or paper-level remarks for this examination…"></textarea>
+        </div>
+      </div>
+
+    </div><!-- /panel-body -->
+
+    <div class="gen-wrap">
+      <button class="gen-btn" id="genBtn" onclick="generate()">
+        <span class="gen-btn-icon">✦</span>
+        Generate Question Paper
+      </button>
+    </div>
+  </aside>
+
+  <!-- ═══ RIGHT WORKSPACE ═══ -->
+  <div class="workspace">
+
+    <!-- Empty State -->
+    <div class="empty-state" id="emptyState">
+      <div class="empty-graphic">📄</div>
+      <div class="empty-title">Ready to Generate</div>
+      <div class="empty-body">Configure the course details on the left panel, adjust Bloom's taxonomy distribution, and click Generate.</div>
+      <div class="empty-steps">
+        <div class="empty-step"><div class="step-num">1</div><span>Fill institution details & subject name</span></div>
+        <div class="empty-step"><div class="step-num">2</div><span>Add topics and set Bloom's level counts</span></div>
+        <div class="empty-step"><div class="step-num">3</div><span>Click Generate — export to PDF instantly</span></div>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div class="loading-state" id="loadingState">
+      <div class="loader-ring"></div>
+      <div class="loading-label">Composing Paper</div>
+      <div class="loading-dots">
+        <div class="loading-dot"></div>
+        <div class="loading-dot"></div>
+        <div class="loading-dot"></div>
+      </div>
+    </div>
+
+    <!-- Output Area -->
+    <div class="output-area" id="outputArea">
+
+      <!-- Toolbar -->
+      <div class="output-toolbar">
+        <div>
+          <div class="output-heading" id="outHeading">Question Paper</div>
+          <div class="meta-tags" id="outMeta"></div>
+        </div>
+        <div class="action-row">
+          <button class="action-btn" onclick="generate()">↺ &nbsp;Regenerate</button>
+          <button class="action-btn export" onclick="exportPDF()">↓ &nbsp;Export PDF</button>
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="output-body">
+
+        <!-- Stats row -->
+        <div class="analytics-row" id="statsRow"></div>
+
+        <!-- Distribution -->
+        <div class="dist-card">
+          <div class="dist-header">
+            <div class="dist-title">Bloom's Taxonomy — Marks Distribution</div>
+            <div class="dist-total" id="distTotal"></div>
+          </div>
+          <div class="dist-grid" id="distGrid"></div>
+        </div>
+
+        <!-- Paper -->
+        <div class="paper-wrap" id="paperWrap"></div>
+
+      </div>
+    </div>
+
+  </div><!-- /workspace -->
+</div><!-- /app -->
+
+<script>
+/* ── TAGS ────────────────────────────────────────────────────── */
+const tagField = document.getElementById('tagField');
+const tagInput = document.getElementById('tagInput');
+let tags = ['Basic Concepts','Instruction Set','Memory Organization','Pipeline','ALU Design','Control Unit','I/O Systems'];
+
+function renderTags() {
+  tagField.querySelectorAll('.tag-pill').forEach(t => t.remove());
+  tags.forEach((t, i) => {
+    const el = document.createElement('span');
+    el.className = 'tag-pill';
+    el.innerHTML = `${t} <span class="pill-x" onclick="rmTag(${i})">×</span>`;
+    tagField.insertBefore(el, tagInput);
+  });
+}
+function rmTag(i) { tags.splice(i,1); renderTags(); }
+tagInput.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ',') && tagInput.value.trim()) {
+    e.preventDefault(); tags.push(tagInput.value.trim()); tagInput.value = ''; renderTags();
+  }
+  if (e.key === 'Backspace' && !tagInput.value && tags.length) { tags.pop(); renderTags(); }
+});
+tagField.addEventListener('click', () => tagInput.focus());
+renderTags();
+
+function sb(n) { document.getElementById(`b${n}v`).textContent = document.getElementById(`b${n}`).value; }
+
+/* ── QUESTION BANK ───────────────────────────────────────────── */
+const QB_P1 = [
+  ["State and explain the difference between computer architecture and computer organization.", 1, 2],
+  ["How will the execution time T of the basic performance equation be decreased?", 1, 3],
+  ["Illustrate the steps involved in instruction fetch.", 1, 2],
+  ["Explain the role of the instruction decoder in a CPU.", 2, 1],
+  ["Why is WMFC used in memory-mapped transfers?", 2, 1],
+  ["How many address lines are required to address 64KB of memory?", 2, 3],
+  ["Which register holds the address of the next instruction to be executed?", 2, 2],
+  ["Explain the advantage of pipeline over non-pipeline architecture.", 3, 1],
+  ["Illustrate the drawback of single accumulator based organization.", 4, 2],
+  ["Mention two advantages of multi-bus over single-bus organization.", 4, 2],
+  ["Define RISC and CISC. State one key difference between them.", 1, 1],
+  ["What is the Von-Neumann bottleneck? How can it be minimized?", 1, 2],
+  ["Differentiate between volatile and non-volatile memory with examples.", 3, 1],
+  ["What are cache memory hit and miss? State their significance.", 3, 1],
+  ["Define throughput and latency in the context of a pipeline processor.", 3, 2],
+  ["What is an interrupt? Name two types of hardware interrupts.", 4, 1],
+  ["Define instruction set architecture (ISA) and give one example.", 1, 1],
+  ["How does DMA differ from interrupt-driven I/O?", 4, 2],
+  ["What is a microinstruction? Where is it stored?", 4, 1],
+  ["Define 2's complement. Convert −15 to its 8-bit 2's complement representation.", 3, 1],
+  ["What is the purpose of the Memory Address Register (MAR)?", 2, 1],
+  ["Explain the difference between serial and parallel data transfer.", 4, 2],
+  ["State two advantages of using general-purpose registers in a processor.", 2, 2],
+  ["What is a stack? How is it utilized in subroutine calls?", 2, 1],
+  ["Define the speedup formula for a pipelined processor.", 3, 2],
+];
+
+const QB_P2 = [
+  ["Explain the four-stage instruction execution process with a suitable diagram.", 1, 1],
+  ["Differentiate between Von-Neumann and Harvard architecture with the help of block diagrams.", 1, 2],
+  ["Justify: The efficiency of Booth's multiplication algorithm is dependent on the operands.", 3, 3],
+  ["Explain the memory hierarchy with a suitable diagram. How do cost and access time vary across levels?", 3, 2],
+  ["With a neat diagram explain the hardware circuit for unsigned binary division. Perform 10101 ÷ 00101 using the restoring technique. Show all steps.", 4, 3],
+  ["Draw and differentiate between SRAM and DRAM design architecture.", 3, 2],
+  ["What is set-associative mapping? Explain with a suitable numerical example.", 3, 1],
+  ["Explain Big-Endian and Little-Endian addressing with a clear illustrative example.", 1, 1],
+  ["Explain the Booth multiplication algorithm with the help of a flowchart.", 3, 2],
+  ["Differentiate between write-through and write-back cache update techniques.", 3, 2],
+  ["A cache has an 85% hit ratio, access time 200 ns on a hit, and 800 ns on a miss. Compute the effective memory access time.", 3, 3],
+  ["Convert 104.12 into IEEE 754 single precision floating-point format. Show the final result in Hexadecimal.", 4, 4],
+  ["Explain Direct Memory Access (DMA) with a neat block diagram. State its advantages over programmed I/O.", 4, 2],
+  ["Describe the working of a 4-stage pipeline processor with a timing diagram showing stage utilization.", 3, 2],
+  ["Explain structural, data, and control hazards in a pipeline. Describe techniques used to resolve each.", 3, 3],
+  ["Describe fully associative cache mapping with a numerical example showing tag and data fields.", 3, 2],
+  ["Perform BCD addition: 47 + 35. Show each step and explain the correction factor applied.", 3, 3],
+  ["Explain virtual memory. Describe the FIFO page replacement policy with a reference string example.", 3, 2],
+  ["Explain instruction-level pipelining. Derive the pipeline efficiency formula and apply it to an example.", 3, 2],
+  ["Differentiate between synchronous and asynchronous data transfer. Provide one example each.", 4, 2],
+];
+
+const QB_P3 = [
+  [
+    ["Briefly discuss all functional blocks of a computer with a neat labeled sketch. Explain the role of each block in detail.", 1, 2, 8],
+    ["Draw the internal architecture of a processor and explain basic operational concepts assuming a 2-phase instruction cycle.", 1, 2, 8]
+  ],
+  [
+    ["Write assembly programs that evaluate X = (A×B/C − D)/(E×F) using: (i) Two-address format (ii) One-address format (iii) Zero-address format. Write a program for each format.", 2, 3, 8],
+    ["Explain all the following addressing modes with at least one example each: (i) Direct (ii) Indirect (iii) Register Indirect (iv) Indexed (v) Relative.", 2, 2, 8]
+  ],
+  [
+    ["A memory system has a two-level cache. Access times are 15 ns and 45 ns respectively; hit ratios are 80% and 90% respectively. The main memory access time is 200 ns. Find the average memory access time.", 3, 4, 8],
+    ["Multiply 8 and −7 using Booth's algorithm. Show all cycles during multiplication with complete intermediate register values.", 3, 3, 8]
+  ],
+  [
+    ["What is the difference between an interrupt and an exception? Describe the role of an interrupt in process state transitions with a neat diagram.", 4, 2, 8],
+    ["Differentiate between a hardwired control unit and a microprogrammed control unit with a neat diagram and a detailed comparison table.", 4, 2, 8]
+  ],
+  [
+    ["Explain instruction-level parallelism (ILP). Describe superscalar and VLIW architectures with suitable diagrams and a comparison.", 3, 3, 8],
+    ["Design a microprogrammed control unit. Explain the role of control memory, microinstruction format, and microinstruction sequencing.", 4, 3, 8]
+  ],
+  [
+    ["Explain the memory interleaving technique for improving memory bandwidth. Illustrate both low-order and high-order interleaving with neat diagrams.", 3, 2, 8],
+    ["Describe floating-point addition and subtraction using IEEE 754 single precision format. Illustrate with a numerical example.", 3, 3, 8]
+  ],
+];
+
+function shuf(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ── GENERATE ────────────────────────────────────────────────── */
+async function generate() {
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span style="display:inline-block;animation:spin 0.7s linear infinite;font-size:0.85rem">◌</span> &nbsp;Generating…';
+
+  document.getElementById('emptyState').classList.add('hidden');
+  document.getElementById('outputArea').classList.remove('active');
+  document.getElementById('loadingState').classList.add('active');
+
+  // Update step indicator
+  document.querySelectorAll('.step-dot').forEach((d,i) => {
+    d.classList.toggle('done', i < 1);
+    d.classList.toggle('active', i === 1);
+  });
+  document.getElementById('navStatus').textContent = 'Generating';
+
+  await sleep(1500);
+
+  const uni      = document.getElementById('university').value || 'University';
+  const branch   = document.getElementById('branch').value || 'MCA';
+  const code     = document.getElementById('code').value || '';
+  const qcode    = document.getElementById('qcode').value || '';
+  const subject  = document.getElementById('subject').value || 'Subject';
+  const sem      = document.getElementById('semester').value;
+  const acyear   = document.getElementById('acyear').value;
+  const examType = document.getElementById('examType').value;
+  const duration = document.getElementById('duration').value;
+  const maxmarks = 100;
+
+  const p1qs = shuf(QB_P1).slice(0, 10);
+  const p2qs = shuf(QB_P2).slice(0, 12);
+  const p3qs = shuf(QB_P3).slice(0, 4);
+
+  // Toolbar
+  document.getElementById('outHeading').textContent = `${subject} — ${examType}`;
+  document.getElementById('outMeta').innerHTML = [code, `${branch} · ${sem} Sem`, acyear, `${maxmarks} Marks`, `${duration} Hrs`, `Q Code: ${qcode}`]
+    .map(c => `<span class="meta-tag">${c}</span>`).join('');
+
+  // Stats
+  renderStats(p1qs, p2qs, p3qs, maxmarks);
+  // Distribution
+  renderDist(p1qs, p2qs, p3qs, maxmarks);
+  // Paper
+  renderPaper({uni,branch,code,qcode,subject,sem,acyear,examType,duration,maxmarks}, p1qs, p2qs, p3qs);
+
+  document.getElementById('loadingState').classList.remove('active');
+  document.getElementById('outputArea').classList.add('active');
+
+  // Step done
+  document.querySelectorAll('.step-dot').forEach((d,i) => {
+    d.classList.toggle('done', i < 2);
+    d.classList.toggle('active', i === 2);
+  });
+  document.getElementById('navStatus').textContent = 'Ready';
+  document.getElementById('navStatus').classList.add('active');
+
+  btn.disabled = false;
+  btn.innerHTML = '<span class="gen-btn-icon">✦</span> Generate Question Paper';
+
+  setTimeout(() => {
+    document.querySelectorAll('.dist-fill').forEach(b => { b.style.width = b.dataset.pct + '%'; });
+  }, 100);
+}
+
+/* ── STATS CARDS ─────────────────────────────────────────────── */
+function renderStats(p1, p2, p3, total) {
+  const totalQ = p1.length + p2.length + (p3.length * 2);
+  const parts = 3;
+  const levels = new Set([...p1.map(q=>q[2]), ...p2.map(q=>q[2]), ...p3.flat().map(q=>q[2])]).size;
+
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card"><div class="stat-val">${total}</div><div class="stat-label">Total Marks</div></div>
+    <div class="stat-card"><div class="stat-val">${totalQ}</div><div class="stat-label">Questions</div></div>
+    <div class="stat-card"><div class="stat-val">${parts}</div><div class="stat-label">Sections</div></div>
+    <div class="stat-card"><div class="stat-val">${levels}</div><div class="stat-label">Bloom Levels</div></div>
+  `;
+}
+
+/* ── DISTRIBUTION ────────────────────────────────────────────── */
+function renderDist(p1, p2, p3, total) {
+  const names   = ['Remember','Understand','Apply','Analyze','Evaluate','Create'];
+  const colors  = ['#3da87a','#52c4a0','#f0b429','#e07b28','#e05555','#9b59b6'];
+  const cnt     = [0,0,0,0,0,0];
+
+  p1.forEach(([,co,lv]) => { if(lv>=1&&lv<=6) cnt[lv-1] += 2; });
+  p2.forEach(([,co,lv]) => { if(lv>=1&&lv<=6) cnt[lv-1] += 6; });
+  p3.forEach(pair => pair.forEach(([,co,lv,m]) => { if(lv>=1&&lv<=6) cnt[lv-1] += m; }));
+
+  const tot = cnt.reduce((a,b)=>a+b,0) || 1;
+  document.getElementById('distTotal').textContent = `${tot} Total Marks`;
+
+  document.getElementById('distGrid').innerHTML = names.map((n,i) => {
+    const pct = Math.round(cnt[i] / tot * 100);
+    return `<div class="dist-row">
+      <span class="dist-name" style="color:${colors[i]}">${n}</span>
+      <div class="dist-track"><div class="dist-fill" data-pct="${pct}" style="background:${colors[i]};width:0%"></div></div>
+      <span class="dist-pct">${cnt[i]}m &nbsp;${pct}%</span>
+    </div>`;
+  }).join('');
+}
+
+/* ── RENDER PAPER ────────────────────────────────────────────── */
+function renderPaper(info, p1, p2, p3) {
+  const {uni,branch,code,qcode,subject,sem,acyear,examType,duration,maxmarks} = info;
+  const alpha = 'abcdefghijkl';
+  const regBoxes = Array(10).fill('').map((_,i) => `<div class="qp-reg-box">&nbsp;</div>`).join('');
+
+  let p1rows = '';
+  p1.forEach(([q,co,lv], i) => {
+    p1rows += `<tr>
+      ${i===0 ? `<td class="tc-qno" rowspan="10" style="vertical-align:middle;font-weight:700;">Q1</td>` : ''}
+      <td class="tc-sub">${alpha[i]})</td>
+      <td class="tc-co">${co}</td>
+      <td class="tc-lvl">${lv}</td>
+      <td>${q}</td>
+      <td class="tc-m">2</td>
+    </tr>`;
+  });
+
+  let p2rows = '';
+  p2.forEach(([q,co,lv], i) => {
+    p2rows += `<tr>
+      ${i===0 ? `<td class="tc-qno" rowspan="${p2.length}" style="vertical-align:middle;font-weight:700;">Q2</td>` : ''}
+      <td class="tc-sub">${alpha[i]})</td>
+      <td class="tc-co">${co}</td>
+      <td class="tc-lvl">${lv}</td>
+      <td>${q}</td>
+      <td class="tc-m">6</td>
+    </tr>`;
+  });
+
+  let p3rows = '';
+  p3.forEach((pair, qi) => {
+    pair.forEach(([q,co,lv,m], si) => {
+      p3rows += `<tr>
+        ${si===0 ? `<td class="tc-qno" rowspan="2" style="vertical-align:middle;font-weight:700;">Q${qi+3}</td>` : ''}
+        <td class="tc-sub">${si===0?'a)':'b)'}</td>
+        <td class="tc-co">${co}</td>
+        <td class="tc-lvl">${lv}</td>
+        <td>${q}</td>
+        <td class="tc-m">${m}</td>
+      </tr>`;
+    });
+  });
+
+  document.getElementById('paperWrap').innerHTML = `
+    <div class="qp-reg-row">
+      <div class="qp-reg-left"><strong>Registration No: &nbsp;—</strong></div>
+      <div class="qp-reg-boxes">${regBoxes}</div>
+    </div>
+
+    <div class="qp-head">
+      <div class="qp-head-top">
+        <span>Total Number of Pages: 02 &nbsp;&nbsp;&nbsp; ${branch} / ${code}</span>
+      </div>
+      <div class="qp-center-block">
+        <div class="qp-exam-line">${sem} Semester ${examType}: ${acyear}</div>
+        <div class="qp-subject-name">${subject}</div>
+        <div class="qp-branch-line">BRANCH: ${branch}</div>
+      </div>
+      <div class="qp-info-bar">
+        <span>Time: ${duration} Hours</span>
+        <span>Max Marks: ${maxmarks} &nbsp;&nbsp; Q Code: ${qcode}</span>
+      </div>
+      <div class="qp-instruction">
+        Answer Question No.1 (Part-I) which is compulsory, any EIGHT from Part-II and any TWO from Part-III.<br>
+        The figures in the right hand margin indicate marks.
+      </div>
+    </div>
+
+    <div class="qp-part-head">Part-I</div>
+    <table class="qp-table">
+      <thead>
+        <tr>
+          <th class="tc-qno">Q No.</th>
+          <th class="tc-sub"></th>
+          <th class="tc-co">CO</th>
+          <th class="tc-lvl">Level</th>
+          <th>Short Answer Type Questions &nbsp;(Answer All-10)</th>
+          <th class="tc-m">(02×10)</th>
+        </tr>
+      </thead>
+      <tbody>${p1rows}</tbody>
+    </table>
+
+    <div class="qp-part-head">Part-II</div>
+    <table class="qp-table">
+      <thead>
+        <tr>
+          <th class="tc-qno">Q No.</th>
+          <th class="tc-sub"></th>
+          <th class="tc-co">CO</th>
+          <th class="tc-lvl">Level</th>
+          <th>Focused-Short Answer Type Questions &nbsp;(Answer Any Eight out of Twelve)</th>
+          <th class="tc-m">(06×08)</th>
+        </tr>
+      </thead>
+      <tbody>${p2rows}</tbody>
+    </table>
+
+    <div class="qp-part-head">Part-III</div>
+    <table class="qp-table">
+      <thead>
+        <tr>
+          <th class="tc-qno">Q No.</th>
+          <th class="tc-sub"></th>
+          <th class="tc-co">CO</th>
+          <th class="tc-lvl">Level</th>
+          <th>Long Answer Type Questions &nbsp;(Answer Any Two out of Four)</th>
+          <th class="tc-m">(02×16)</th>
+        </tr>
+      </thead>
+      <tbody>${p3rows}</tbody>
+    </table>
+
+    <div class="qp-paper-footer">
+      <span>Generated by QuestGen AI &mdash; Bloom's Taxonomy aligned &mdash; ${new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</span>
+      <span>Page 1 of 02</span>
+    </div>
+  `;
+}
+
+/* ── EXPORT PDF ──────────────────────────────────────────────── */
+function exportPDF() {
+  const html = document.getElementById('paperWrap').outerHTML;
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head>
+<meta charset="UTF-8">
+<title>Question Paper — QuestGen AI</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'IBM Plex Sans',Arial,sans-serif;background:#fff;color:#111;}
+.paper-wrap{background:#fff;font-family:'IBM Plex Sans',Arial,sans-serif;}
+.qp-reg-row{display:flex;border-bottom:2.5px solid #111;font-size:0.72rem;}
+.qp-reg-left{flex:1;padding:8px 15px;border-right:1.5px solid #111;display:flex;align-items:center;font-weight:700;}
+.qp-reg-boxes{display:flex;}
+.qp-reg-box{width:28px;border-right:1px solid #111;display:flex;align-items:center;justify-content:center;padding:8px 0;font-size:0.55rem;color:#ccc;}
+.qp-reg-box:last-child{border-right:none;}
+.qp-head{border-bottom:2.5px solid #111;padding:14px 19px 13px;}
+.qp-head-top{font-size:0.72rem;font-weight:700;margin-bottom:9px;display:flex;justify-content:space-between;}
+.qp-center-block{text-align:center;margin-bottom:9px;}
+.qp-exam-line{font-size:0.79rem;font-weight:700;margin-bottom:3px;}
+.qp-subject-name{font-size:0.97rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;}
+.qp-branch-line{font-size:0.73rem;font-weight:700;margin-bottom:9px;}
+.qp-info-bar{display:flex;justify-content:space-between;border-top:1px solid #bbb;padding-top:8px;font-size:0.72rem;font-weight:700;}
+.qp-instruction{margin-top:8px;font-size:0.68rem;font-weight:700;font-style:italic;line-height:1.5;}
+.qp-part-head{background:#efefef;border-top:1px solid #aaa;border-bottom:1px solid #aaa;padding:6px 15px;font-size:0.77rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;}
+.qp-table{width:100%;border-collapse:collapse;font-size:0.76rem;}
+.qp-table th{background:#e2e2e2;border:1px solid #999;padding:6px 9px;font-weight:700;font-size:0.66rem;text-align:center;vertical-align:middle;}
+.qp-table td{border:1px solid #ccc;padding:8px 10px;vertical-align:top;line-height:1.55;}
+.tc-qno{width:44px;text-align:center;font-weight:700;vertical-align:middle;}
+.tc-sub{width:28px;text-align:center;}
+.tc-co{width:36px;text-align:center;}
+.tc-lvl{width:40px;text-align:center;}
+.tc-m{width:43px;text-align:center;font-weight:700;}
+.qp-paper-footer{border-top:1px solid #ccc;padding:9px 19px;display:flex;justify-content:space-between;background:#f7f7f7;font-size:0.65rem;color:#888;font-style:italic;}
+@page{margin:12mm 14mm;size:A4;}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
+</style>
+</head><body>${html}</body></html>`);
+  w.document.close();
+  setTimeout(() => { w.focus(); w.print(); }, 700);
+}
+</script>
+</body>
+</html>
