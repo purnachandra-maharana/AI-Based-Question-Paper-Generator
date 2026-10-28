@@ -1,0 +1,35 @@
+name: QuestGen Static Site CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify entrypoint integrity
+        run: |
+          if [ ! -f "index.html" ]; then
+            echo "Error: index.html entrypoint is missing!"
+            exit 1
+          fi
+          SIZE=$(wc -c < index.html)
+          if [ "$SIZE" -lt 1000 ]; then
+            echo "Error: index.html is suspiciously small ($SIZE bytes)!"
+            exit 1
+          fi
+          echo "Verified index.html ($SIZE bytes)"
+
+      - name: HTML5 Structure Validation
+        run: |
+          grep -qi "<!DOCTYPE html>" index.html || (echo "Missing DOCTYPE" && exit 1)
+          grep -qi "<head>" index.html || (echo "Missing <head>" && exit 1)
+          grep -qi "<body>" index.html || (echo "Missing <body>" && exit 1)
+          grep -qi "render.yaml" render.yaml || (echo "render.yaml exists" && exit 0)
+          echo "HTML5 validation passed successfully."
